@@ -1,11 +1,23 @@
-import React, { useState } from 'react';
-import { generateTrip } from './lib/api.js';
+import React, { useState, useEffect } from 'react';
+import { generateTrip, refineTrip } from './lib/api.js';
+import { loadSavedTrips, saveTrip, deleteTrip } from './lib/storage.js';
+import PromptInput from './components/PromptInput.jsx';
+import TripView from './components/TripView.jsx';
+import RefinementInput from './components/RefinementInput.jsx';
+import SavedTrips from './components/SavedTrips.jsx';
 
 export default function App() {
   const [prompt, setPrompt] = useState('3-day trip to Hyderabad for history and food lovers');
   const [loading, setLoading] = useState(false);
+  const [refining, setRefining] = useState(false);
   const [error, setError] = useState(null);
   const [itinerary, setItinerary] = useState(null);
+  const [savedTrips, setSavedTrips] = useState([]);
+  const [isSaved, setIsSaved] = useState(false);
+
+  useEffect(() => {
+    setSavedTrips(loadSavedTrips());
+  }, []);
 
   const handleGenerate = async (e) => {
     e.preventDefault();
@@ -13,6 +25,7 @@ export default function App() {
 
     setLoading(true);
     setError(null);
+    setIsSaved(false);
 
     try {
       const data = await generateTrip(prompt);
@@ -24,6 +37,81 @@ export default function App() {
     }
   };
 
+  const handleRefine = async (instruction) => {
+    if (!itinerary) return;
+
+    setRefining(true);
+    setError(null);
+    setIsSaved(false);
+
+    try {
+      const updatedData = await refineTrip(itinerary, instruction);
+      setItinerary(updatedData);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setRefining(false);
+    }
+  };
+
+  const handleRemoveStop = (dayNumber, stopId) => {
+    setItinerary((prev) => {
+      if (!prev) return prev;
+      const updatedDays = prev.days.map((day) => {
+        if (day.day !== dayNumber) return day;
+        return {
+          ...day,
+          stops: day.stops.filter((stop) => stop.id !== stopId)
+        };
+      });
+      return { ...prev, days: updatedDays };
+    });
+    setIsSaved(false);
+  };
+
+  const handleMoveStop = (dayNumber, currentIndex, direction) => {
+    setItinerary((prev) => {
+      if (!prev) return prev;
+      const updatedDays = prev.days.map((day) => {
+        if (day.day !== dayNumber) return day;
+        const targetIndex = currentIndex + direction;
+        if (targetIndex < 0 || targetIndex >= day.stops.length) return day;
+        const newStops = [...day.stops];
+        const [movedStop] = newStops.splice(currentIndex, 1);
+        newStops.splice(targetIndex, 0, movedStop);
+        return {
+          ...day,
+          stops: newStops
+        };
+      });
+      return { ...prev, days: updatedDays };
+    });
+    setIsSaved(false);
+  };
+
+  const handleSaveTrip = () => {
+    if (!itinerary) return;
+    try {
+      const updatedList = saveTrip(prompt, itinerary);
+      setSavedTrips(updatedList);
+      setIsSaved(true);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleLoadTrip = (savedSession) => {
+    setPrompt(savedSession.prompt || '');
+    setItinerary(savedSession.itinerary);
+    setError(null);
+    setIsSaved(true);
+  };
+
+  const handleDeleteTrip = (tripId) => {
+    const updatedList = deleteTrip(tripId);
+    setSavedTrips(updatedList);
+  };
+
   return (
     <div className="app-container">
       <header className="app-header">
@@ -33,38 +121,40 @@ export default function App() {
         </p>
       </header>
 
-      <form className="prompt-form" onSubmit={handleGenerate}>
-        <label className="prompt-label" htmlFor="trip-prompt">
-          Trip Description
-        </label>
-        <textarea
-          id="trip-prompt"
-          className="prompt-textarea"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          rows={3}
-          placeholder="e.g. Plan a 3-day trip to Hyderabad for someone interested in food, history and photography."
-        />
-        <button
-          type="submit"
-          className="btn-primary"
-          disabled={loading}
-        >
-          {loading ? 'Generating Itinerary...' : 'Generate Itinerary'}
-        </button>
-      </form>
+      <SavedTrips
+        savedTrips={savedTrips}
+        onLoadTrip={handleLoadTrip}
+        onDeleteTrip={handleDeleteTrip}
+      />
 
-      {itinerary && (
-        <div className='success-banner'>
-          <strong>Itinerary: </strong>{itinerary.title}
-          <p>Response Generated Successfully, Please have a look in the console.</p>
-        </div>
-      )}
+      <PromptInput
+        prompt={prompt}
+        setPrompt={setPrompt}
+        onSubmit={handleGenerate}
+        loading={loading}
+      />
 
       {error && (
         <div className="error-banner">
           <strong>Error: </strong>{error}
         </div>
+      )}
+
+      {itinerary && (
+        <>
+          <TripView
+            itinerary={itinerary}
+            onRemoveStop={handleRemoveStop}
+            onMoveStop={handleMoveStop}
+            onSaveTrip={handleSaveTrip}
+            isSaved={isSaved}
+          />
+
+          <RefinementInput
+            onRefine={handleRefine}
+            loading={refining}
+          />
+        </>
       )}
     </div>
   );

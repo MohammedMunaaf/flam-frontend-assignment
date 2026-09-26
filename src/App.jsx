@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { generateTrip, refineTrip } from './lib/api.js';
 import { loadSavedTrips, saveTrip, deleteTrip } from './lib/storage.js';
 import PromptInput from './components/PromptInput.jsx';
 import TripView from './components/TripView.jsx';
 import RefinementInput from './components/RefinementInput.jsx';
 import SavedTrips from './components/SavedTrips.jsx';
+import LoadingState from './components/LoadingState.jsx';
+import ErrorState from './components/ErrorState.jsx';
 
 export default function App() {
+  const [theme, setTheme] = useState(() => localStorage.getItem('trip_planner_theme') || 'dark');
   const [prompt, setPrompt] = useState('3-day trip to Hyderabad for history and food lovers');
   const [loading, setLoading] = useState(false);
   const [refining, setRefining] = useState(false);
@@ -15,42 +18,63 @@ export default function App() {
   const [savedTrips, setSavedTrips] = useState([]);
   const [isSaved, setIsSaved] = useState(false);
 
+  const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('trip_planner_theme', theme);
+  }, [theme]);
+
   useEffect(() => {
     setSavedTrips(loadSavedTrips());
   }, []);
 
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   const handleGenerate = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!prompt.trim()) return;
 
+    const currentRequestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     setIsSaved(false);
 
     try {
       const data = await generateTrip(prompt);
+      if (currentRequestId !== requestIdRef.current) return;
       setItinerary(data);
     } catch (err) {
+      if (currentRequestId !== requestIdRef.current) return;
       setError(err.message);
     } finally {
-      setLoading(false);
+      if (currentRequestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   const handleRefine = async (instruction) => {
     if (!itinerary) return;
 
+    const currentRequestId = ++requestIdRef.current;
     setRefining(true);
     setError(null);
     setIsSaved(false);
 
     try {
       const updatedData = await refineTrip(itinerary, instruction);
+      if (currentRequestId !== requestIdRef.current) return;
       setItinerary(updatedData);
     } catch (err) {
+      if (currentRequestId !== requestIdRef.current) return;
       setError(err.message);
     } finally {
-      setRefining(false);
+      if (currentRequestId === requestIdRef.current) {
+        setRefining(false);
+      }
     }
   };
 
@@ -115,10 +139,22 @@ export default function App() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <h1 className="app-title">AI Trip Planner</h1>
-        <p className="app-subtitle">
-          Plan your customized travel itinerary with AI-powered structure.
-        </p>
+        <div className="header-top-row">
+          <div>
+            <h1 className="app-title">AI Trip Planner</h1>
+            <p className="app-subtitle">
+              Plan your customized travel itinerary with AI-powered structure.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="theme-toggle-btn"
+            onClick={toggleTheme}
+            aria-label="Toggle theme"
+          >
+            {theme === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode'}
+          </button>
+        </div>
       </header>
 
       <SavedTrips
@@ -131,16 +167,33 @@ export default function App() {
         prompt={prompt}
         setPrompt={setPrompt}
         onSubmit={handleGenerate}
-        loading={loading}
+        loading={loading || refining}
       />
 
       {error && (
-        <div className="error-banner">
-          <strong>Error: </strong>{error}
+        <ErrorState
+          message={error}
+          onRetry={handleGenerate}
+        />
+      )}
+
+      {loading && (
+        <LoadingState
+          message="Generating your structured itinerary..."
+        />
+      )}
+
+      {!loading && !itinerary && !error && (
+        <div className="empty-state">
+          <div className="empty-state-icon">🗺️</div>
+          <h3 className="empty-state-title">No Itinerary Yet</h3>
+          <p className="empty-state-desc">
+            Describe your dream trip or pick one of the quick suggestions above to generate an interactive day-by-day plan.
+          </p>
         </div>
       )}
 
-      {itinerary && (
+      {!loading && itinerary && (
         <>
           <TripView
             itinerary={itinerary}

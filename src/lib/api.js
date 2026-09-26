@@ -1,11 +1,13 @@
 import { validateTripResult } from './validateResult.js';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 export async function generateTrip(prompt, signal) {
   if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
     throw new Error('Please enter a trip description.');
   }
 
-  const response = await fetch('/api/generate', {
+  const response = await fetch(`${API_URL}/api/generate`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -32,7 +34,7 @@ export async function refineTrip(currentItinerary, instruction, signal) {
     throw new Error('Please provide a refinement instruction.');
   }
 
-  const response = await fetch('/api/refine', {
+  const response = await fetch(`${API_URL}/api/refine`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'

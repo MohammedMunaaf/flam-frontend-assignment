@@ -40,26 +40,26 @@ app.post('/api/generate', async (req, res) => {
     });
 
     const systemPrompt = `You are a travel itinerary planner. Generate a realistic day-by-day travel itinerary based on the user request.
-Return ONLY valid JSON matching this exact structure, with no markdown formatting or prose:
-{
-  "title": "Short descriptive title for the trip",
-  "summary": "Brief 1-2 sentence overview of the trip experience",
-  "days": [
-    {
-      "day": 1,
-      "title": "Area or theme for this day",
-      "stops": [
-        {
-          "name": "Attraction or activity name",
-          "description": "Concise 1-2 sentence description of what to do or see",
-          "duration": "Estimated duration (e.g. 1.5 hours, 2 hours)"
-        }
-      ]
-    }
-  ]
-}
+      Return ONLY valid JSON matching this exact structure, with no markdown formatting or prose:
+      {
+        "title": "Short descriptive title for the trip",
+        "summary": "Brief 1-2 sentence overview of the trip experience",
+        "days": [
+          {
+            "day": 1,
+            "title": "Area or theme for this day",
+            "stops": [
+              {
+                "name": "Attraction or activity name",
+                "description": "Concise 1-2 sentence description of what to do or see",
+                "duration": "Estimated duration (e.g. 1.5 hours, 2 hours)"
+              }
+            ]
+          }
+        ]
+      }
 
-User request: ${prompt.trim()}`;
+      User request: ${prompt.trim()}`;
 
     const result = await model.generateContent(systemPrompt);
     const responseText = result.response.text();
@@ -76,8 +76,9 @@ User request: ${prompt.trim()}`;
     const parsedData = JSON.parse(cleanedText);
     return res.json(parsedData);
   } catch (error) {
+    console.error('Gemini generate error:', error);
     return res.status(500).json({
-      error: error.message || 'Failed to generate itinerary from Gemini API.'
+      error: 'Failed to generate itinerary right now. Please try again.'
     });
   }
 });
@@ -111,31 +112,31 @@ app.post('/api/refine', async (req, res) => {
     });
 
     const systemPrompt = `You are a travel itinerary planner. Refine and modify the provided trip itinerary according to the user's refinement instructions.
-Keep all unmodified days, stops, and details intact unless specifically requested to change, remove, or replace them.
-Return ONLY valid JSON matching this exact structure, with no markdown formatting or prose:
-{
-  "title": "Short descriptive title for the trip",
-  "summary": "Brief 1-2 sentence overview of the trip experience",
-  "days": [
-    {
-      "day": 1,
-      "title": "Area or theme for this day",
-      "stops": [
-        {
-          "name": "Attraction or activity name",
-          "description": "Concise 1-2 sentence description of what to do or see",
-          "duration": "Estimated duration (e.g. 1.5 hours, 2 hours)"
-        }
-      ]
-    }
-  ]
-}
+      Keep all unmodified days, stops, and details intact unless specifically requested to change, remove, or replace them.
+      Return ONLY valid JSON matching this exact structure, with no markdown formatting or prose:
+      {
+        "title": "Short descriptive title for the trip",
+        "summary": "Brief 1-2 sentence overview of the trip experience",
+        "days": [
+          {
+            "day": 1,
+            "title": "Area or theme for this day",
+            "stops": [
+              {
+                "name": "Attraction or activity name",
+                "description": "Concise 1-2 sentence description of what to do or see",
+                "duration": "Estimated duration (e.g. 1.5 hours, 2 hours)"
+              }
+            ]
+          }
+        ]
+      }
 
-Current itinerary:
-${JSON.stringify(currentItinerary, null, 2)}
+      Current itinerary:
+      ${JSON.stringify(currentItinerary, null, 2)}
 
-Refinement instruction:
-${instruction.trim()}`;
+      Refinement instruction:
+      ${instruction.trim()}`;
 
     const result = await model.generateContent(systemPrompt);
     const responseText = result.response.text();
@@ -152,8 +153,10 @@ ${instruction.trim()}`;
     const parsedData = JSON.parse(cleanedText);
     return res.json(parsedData);
   } catch (error) {
+    console.error('Gemini refine error:', error);
+
     return res.status(500).json({
-      error: error.message || 'Failed to refine itinerary with Gemini API.'
+      error: 'Failed to refine itinerary right now. Please try again.'
     });
   }
 });
